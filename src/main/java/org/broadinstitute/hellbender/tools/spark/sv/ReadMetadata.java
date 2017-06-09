@@ -252,7 +252,7 @@ public class ReadMetadata {
         return accumulator;
     }
 
-    private static Map<String, Integer> buildContigNameToIDMap( final SAMFileHeader header ) {
+    public static Map<String, Integer> buildContigNameToIDMap( final SAMFileHeader header ) {
         final List<SAMSequenceRecord> contigs = header.getSequenceDictionary().getSequences();
         final Map<String, Integer> contigNameToID = new HashMap<>(SVUtils.hashMapCapacity(contigs.size()));
         final int nContigs = contigs.size();

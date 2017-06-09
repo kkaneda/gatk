@@ -85,6 +85,34 @@ public class BreakpointEvidence {
         }
     }
 
+    @DefaultSerializer(TemplateSizeAnomaly.Serializer.class)
+    public final static class TemplateSizeAnomaly extends BreakpointEvidence {
+        public TemplateSizeAnomaly( final SVInterval interval, final int weight ) {
+            super(interval, weight, true);
+        }
+
+        protected TemplateSizeAnomaly( final Kryo kryo, final Input input ) {
+            super(kryo, input);
+        }
+
+        @Override
+        public String toString() {
+            return super.toString() + "\tTemplateSizeAnomaly";
+        }
+
+        public final static class Serializer extends com.esotericsoftware.kryo.Serializer<TemplateSizeAnomaly> {
+            @Override
+            public void write( final Kryo kryo, final Output output, final TemplateSizeAnomaly templateSizeAnomaly ) {
+                templateSizeAnomaly.serialize(kryo, output);
+            }
+
+            @Override
+            public TemplateSizeAnomaly read( final Kryo kryo, final Input input, final Class<TemplateSizeAnomaly> klass ) {
+                return new TemplateSizeAnomaly(kryo, input);
+            }
+        }
+    }
+
     @DefaultSerializer(ReadEvidence.Serializer.class)
     public static class ReadEvidence extends BreakpointEvidence {
         private static final int SINGLE_READ_WEIGHT = 1;
