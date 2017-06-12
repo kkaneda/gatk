@@ -63,7 +63,7 @@ public abstract class IntervalArgumentCollection implements Serializable {
      *
      * Note that if you specify both -L and -XL, the -XL interval set will be subtracted from the -L interval set.
      */
-    @Argument(fullName = "interval_set_rule", shortName = "isr", doc = "Set merging approach to use for combining interval inputs", common = true)
+    @Argument(fullName = " ", shortName = "isr", doc = "Set merging approach to use for combining interval inputs", common = true)
     protected IntervalSetRule intervalSetRule = IntervalSetRule.UNION;
     /**
      * Use this to add padding to the intervals specified using -L. For example, '-L 1:100' with a
