@@ -167,8 +167,8 @@ workflow Mutect2 {
         File filtered_vcf = Filter.filtered_vcf
         File filtered_vcf_index = Filter.filtered_vcf_index
 
-        # select_first() fails if nothing resulve to non-null, so putting in "/dev/null" for now.
-        File? oncotated_m2_vcf = select_first([oncotate_m2.oncotated_m2_vcf, "null"])
+        # select_first() fails if nothing resulve to non-null, so putting in "null" for now.
+        File? oncotated_m2_maf = select_first([oncotate_m2.oncotated_m2_maf, "null"])
   }
 }
 
@@ -426,6 +426,7 @@ task oncotate_m2 {
     String oncotator_docker
     File? onco_ds_tar_gz
     String? onco_ds_local_db_dir
+    String? oncotator_exe
     command {
 
           # fail if *any* command below (not just the last) doesn't return 0, in particular if wget fails
@@ -439,8 +440,8 @@ task oncotate_m2 {
 
           elif [[ "${onco_ds_tar_gz}" == *.tar.gz ]]; then
               echo "Using given tar file: ${onco_ds_tar_gz}"
-              tar zxvf ${onco_ds_tar_gz}
-              ln -s oncotator_v1_ds_April052016 onco_dbdir
+              mkdir onco_dbdir
+              tar zxvf ${onco_ds_tar_gz} -C onco_dbdir --strip-components 1
 
           else
               echo "Downloading and installing oncotator datasources from Broad FTP site..."
@@ -451,8 +452,8 @@ task oncotate_m2 {
           fi
 
 
-        /root/oncotator_venv/bin/oncotator --db-dir onco_dbdir/ -c $HOME/tx_exact_uniprot_matches.AKT1_CRLF2_FGFR1.txt  \
-            -v ${m2_vcf} ${entity_id}.oncotated.vcf hg19 -i VCF -o VCF --infer-onps --collapse-number-annotations --log_name oncotator.log
+        ${default="/root/oncotator_venv/bin/oncotator" oncotator_exe} --db-dir onco_dbdir/ -c $HOME/tx_exact_uniprot_matches.AKT1_CRLF2_FGFR1.txt  \
+            -v ${m2_vcf} ${entity_id}.maf.annotated hg19 -i VCF -o TCGAMAF --skip-no-alts --infer-onps --collapse-number-annotations --log_name oncotator.log
     }
 
     runtime {
@@ -464,6 +465,6 @@ task oncotate_m2 {
     }
 
     output {
-        File oncotated_m2_vcf="${entity_id}.oncotated.vcf"
+        File oncotated_m2_maf="${entity_id}.maf.annotated"
     }
 }
