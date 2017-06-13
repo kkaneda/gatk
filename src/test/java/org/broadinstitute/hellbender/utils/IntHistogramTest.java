@@ -11,12 +11,6 @@ import java.util.Random;
 public class IntHistogramTest extends BaseTest {
     private static final int MAX_TRACKED_VALUE = 1000;
     private static final float SIGNIFICANCE = .05f;
-    private static Random random;
-
-    @BeforeMethod
-    public void reseedRandom() {
-        random = new Random(47L);
-    }
 
     @Test
     void testTrim() {
@@ -86,7 +80,8 @@ public class IntHistogramTest extends BaseTest {
         Assert.assertTrue(cdf.isDifferent(sample1, SIGNIFICANCE));
     }
 
-    private static IntHistogram genNormalSample( final int mean, final int stdDev, final int nSamples ) {
+    public static IntHistogram genNormalSample( final int mean, final int stdDev, final int nSamples ) {
+        Random random = new Random(47L);
         final IntHistogram histogram = new IntHistogram(MAX_TRACKED_VALUE);
         for ( int sample = 0; sample != nSamples; ++sample ) {
             histogram.addObservation((int)Math.round(mean + stdDev * random.nextGaussian()));
@@ -95,6 +90,7 @@ public class IntHistogramTest extends BaseTest {
     }
 
     private static IntHistogram genLogNormalSample( final int mean, final int stdDev, final int nSamples ) {
+        Random random = new Random(47L);
         final double phi = Math.sqrt((double)stdDev * stdDev + (double)mean * mean);
         final double mu = Math.log((double)mean * mean / phi);
         final double sigma = Math.sqrt(Math.log(phi * phi / mean / mean));

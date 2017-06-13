@@ -179,6 +179,7 @@ public class BreakpointEvidence {
             this.templateEnd = TemplateEnd.values()[input.readByte()];
         }
 
+        @Override
         protected void serialize( final Kryo kryo, final Output output ) {
             super.serialize(kryo, output);
             output.writeString(templateName);
@@ -219,7 +220,7 @@ public class BreakpointEvidence {
         }
 
         private static SVInterval restOfFragmentInterval( final GATKRead read, final ReadMetadata metadata ) {
-            final int templateLen = metadata.getStatistics(read.getReadGroup()).getMedianFragmentSize();
+            final int templateLen = metadata.getGroupMedianFragmentSize(read.getReadGroup());
             int width;
             int start;
             if ( read.isReverseStrand() ) {
@@ -464,7 +465,7 @@ public class BreakpointEvidence {
         final int mateContigIndex = metadata.getContigID(read.getMateContig());
         final int mateStartPosition = read.getMateStart();
         final boolean mateReverseStrand = read.mateIsReverseStrand();
-        final int medianFragmentSize = metadata.getStatistics(read.getReadGroup()).getMedianFragmentSize();
+        final int medianFragmentSize = metadata.getGroupMedianFragmentSize(read.getReadGroup());
         return new SVInterval(mateContigIndex,
                 mateReverseStrand ? mateStartPosition - medianFragmentSize : mateStartPosition + read.getLength(),
                 mateReverseStrand ? mateStartPosition : mateStartPosition + read.getLength() + medianFragmentSize);

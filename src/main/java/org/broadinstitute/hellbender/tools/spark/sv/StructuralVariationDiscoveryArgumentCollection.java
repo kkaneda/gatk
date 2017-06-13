@@ -33,6 +33,10 @@ public class StructuralVariationDiscoveryArgumentCollection implements Serializa
                 fullName = "minEvidenceMatchLength", optional = true)
         public int minEvidenceMatchLength = defaultParams.minEvidenceMatchLength;
 
+        @Argument(doc = "Largest fragment size that will be explicitly counted in determining " +
+                "fragment size statistics.", fullName = "maxTrackedFragmentLength", optional = true)
+        public int maxTrackedFragmentLength = defaultParams.maxTrackedFragmentLength;
+
         @Argument(doc = "Intervals with more than this much coverage are filtered out, because the reads mapped to "+
                 "that interval are clearly not exclusively local to the interval.", fullName = "maxIntervalCoverage")
         public int maxIntervalCoverage = defaultParams.maxIntervalCoverage;

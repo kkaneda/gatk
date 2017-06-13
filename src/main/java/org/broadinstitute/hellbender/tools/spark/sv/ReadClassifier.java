@@ -119,14 +119,10 @@ public class ReadClassifier implements Function<GATKRead, Iterator<BreakpointEvi
                 read.getStart() - ALLOWED_SHORT_FRAGMENT_OVERHANG > read.getMateStart() ) {
             evidenceList.add(new BreakpointEvidence.OutiesPair(read, readMetadata));
         } else {
-            final float zIshScore =
-                    readMetadata.getStatistics(read.getReadGroup()).getZIshScore(Math.abs(read.getFragmentLength()));
+            final float zIshScore = readMetadata.getZishScore(read.getReadGroup(), Math.abs(read.getFragmentLength()));
             if ( zIshScore > MAX_ZISH_SCORE && zIshScore < MIN_CRAZY_ZISH_SCORE ) {
                 evidenceList.add(new BreakpointEvidence.WeirdTemplateSize(read, readMetadata));
             }
-            // TODO: see if there's anything we can do about anomalously short fragment sizes
-            // (With current fragment sizes and read lengths there aren't enough bases to have a >=50bp insertion
-            // between the mates.)
         }
     }
 

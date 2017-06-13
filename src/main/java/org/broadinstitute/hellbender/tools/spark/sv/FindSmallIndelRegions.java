@@ -9,10 +9,7 @@ import org.broadinstitute.hellbender.engine.spark.GATKSparkTool;
 import org.broadinstitute.hellbender.tools.spark.utils.IntHistogram;
 import org.broadinstitute.hellbender.utils.read.GATKRead;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @CommandLineProgramProperties(summary="Find regions likely to contain small indels due to fragment length anomalies.",
         oneLineSummary="Find regions containing small indels.",
@@ -25,6 +22,7 @@ public final class FindSmallIndelRegions extends GATKSparkTool {
     private static final int MIN_MAPQ = 20;
     private static final int MIN_MATCH_LEN = 45;
     private static final int ALLOWED_SHORT_FRAGMENT_OVERHANG = 10;
+    private static final int EVIDENCE_SIZE_GUESS = 1000;
 
     @Override
     public boolean requiresReads()
@@ -35,77 +33,79 @@ public final class FindSmallIndelRegions extends GATKSparkTool {
     @Override
     protected void runTool( final JavaSparkContext ctx ) {
 
-        final Broadcast<Map<String, Integer>> broadcastContigNameToIDMap =
-                ctx.broadcast(ReadMetadata.buildContigNameToIDMap(getHeaderForReads()));
+        final JavaRDD<GATKRead> allReads = getUnfilteredReads();
+        final JavaRDD<GATKRead> mappedReads =
+                allReads.filter(read -> !read.isDuplicate() && !read.failsVendorQualityCheck() && !read.isUnmapped());
 
-        JavaRDD<GATKRead> reads =
-                getUnfilteredReads()
-                    .filter(FindSmallIndelRegions::isTestableRead);
+        final ReadMetadata readMetadata =
+                new ReadMetadata(Collections.emptySet(), getHeaderForReads(), MAX_TRACKED_VALUE, mappedReads);
+        final Broadcast<ReadMetadata> broadcastReadMetadata = ctx.broadcast(readMetadata);
 
-        final List<IntHistogram> histograms =
-                reads
-                    .mapPartitions(readItr -> {
-                        final IntHistogram histogram = new IntHistogram(MAX_TRACKED_VALUE);
-                        while ( readItr.hasNext() ) {
-                            histogram.addObservation(Math.abs(readItr.next().getFragmentLength()));
-                        }
-                        return Collections.singletonList(histogram).iterator();
-                    })
-                    .collect();
-
-        final IntHistogram sumHistogram = new IntHistogram(MAX_TRACKED_VALUE);
-        for ( final IntHistogram histogram : histograms ) {
-            sumHistogram.addObservations(histogram);
-        }
-        final Broadcast<IntHistogram.CDF> broadcastCDF = ctx.broadcast(sumHistogram.trim().getCDF());
+        final JavaRDD<GATKRead> testableReads = allReads.filter(FindSmallIndelRegions::isTestableRead);
 
         final List<BreakpointEvidence> evidenceList =
-                reads
-                    .mapPartitions(readItr -> {
-                        if ( !readItr.hasNext() ) return Collections.emptyIterator();
-                        final List<BreakpointEvidence> evList = new ArrayList<>();
-                        final IntHistogram.CDF cdf = broadcastCDF.value();
-                        final Map<String, Integer> contigNameToIDMap = broadcastContigNameToIDMap.value();
-                        final IntHistogram[] histoPair = new IntHistogram[2];
-                        histoPair[0] = cdf.createEmptyHistogram();
-                        histoPair[1] = cdf.createEmptyHistogram();
-                        GATKRead read = readItr.next();
-                        String curContig = read.getContig();
-                        int curEnd = read.getStart() + BLOCK_SIZE;
-                        int fillIdx = 0;
-                        do {
-                            if ( !read.getContig().equals(curContig) || read.getStart() >= curEnd ) {
-                                final int oldIdx = fillIdx ^ 1; // flip the lowest bit
-                                histoPair[oldIdx].addObservations(histoPair[fillIdx]);
-                                if ( cdf.isDifferent(histoPair[oldIdx]) ) {
-                                    evList.add(createEvidence(contigNameToIDMap.get(curContig), curEnd));
-                                }
-                                histoPair[oldIdx].clear();
-                                fillIdx = oldIdx;
-                                if ( read.getContig().equals(curContig) ) {
-                                    curEnd += BLOCK_SIZE;
-                                } else {
-                                    curContig = read.getContig();
-                                    curEnd = read.getStart() + BLOCK_SIZE;
-                                }
-                            }
-                            histoPair[fillIdx].addObservation(Math.abs(read.getFragmentLength()));
-                        } while ( (read = readItr.hasNext() ? readItr.next() : null) != null );
+            testableReads
+                .mapPartitions(readItr -> gatherEvidence(readItr,broadcastReadMetadata.value()))
+                .collect();
 
-                        final int oldIdx = fillIdx ^ 1; // flip the lowest bit
-                        histoPair[oldIdx].addObservations(histoPair[fillIdx]);
-                        if ( cdf.isDifferent(histoPair[oldIdx]) ) {
-                            evList.add(createEvidence(contigNameToIDMap.get(curContig), curEnd));
-                        }
-                        return evList.iterator();
-                    })
-                    .collect();
         for ( final BreakpointEvidence evidence : evidenceList ) {
             System.out.println(evidence);
         }
     }
 
-    private static boolean isTestableRead( final GATKRead read ) {
+    public static Iterator<BreakpointEvidence> gatherEvidence( final Iterator<GATKRead> readItr,
+                                                               final ReadMetadata readMetadata ) {
+        if ( !readItr.hasNext() ) return Collections.emptyIterator();
+
+        final List<BreakpointEvidence> evList = new ArrayList<>(EVIDENCE_SIZE_GUESS);
+        final Map<String, IntHistogram[]> libraryToHistoPairMap =
+                new HashMap<>(SVUtils.hashMapCapacity(readMetadata.getAllLibraryStatistics().size()));
+        GATKRead read = readItr.next();
+        String curContig = read.getContig();
+        int curEnd = read.getStart() + BLOCK_SIZE;
+        int fillIdx = 0;
+        do {
+            if ( !read.getContig().equals(curContig) || read.getStart() >= curEnd ) {
+                final int oldIdx = fillIdx ^ 1; // flip the lowest bit
+                for ( final Map.Entry<String,IntHistogram[]> entry : libraryToHistoPairMap.entrySet() ) {
+                    final IntHistogram[] histoPair = entry.getValue();
+                    histoPair[oldIdx].addObservations(histoPair[fillIdx]);
+                    if ( readMetadata.getLibraryStatistics(entry.getKey()).isDifferent(histoPair[oldIdx]) ) {
+                        evList.add(createEvidence(readMetadata.getContigID(curContig), curEnd));
+                    }
+                    histoPair[oldIdx].clear();
+                }
+                fillIdx = oldIdx;
+                if ( read.getContig().equals(curContig) ) {
+                    curEnd += BLOCK_SIZE;
+                } else {
+                    curContig = read.getContig();
+                    curEnd = read.getStart() + BLOCK_SIZE;
+                }
+            }
+            final IntHistogram[] histoPair =
+                libraryToHistoPairMap.computeIfAbsent(readMetadata.getLibraryName(read.getReadGroup()),
+                            libName -> {
+                               final IntHistogram[] pair = new IntHistogram[2];
+                               final IntHistogram.CDF cdf = readMetadata.getLibraryStatistics(libName);
+                                pair[0] = cdf.createEmptyHistogram();
+                                pair[1] = cdf.createEmptyHistogram();
+                               return pair; });
+            histoPair[fillIdx].addObservation(Math.abs(read.getFragmentLength()));
+        } while ( (read = readItr.hasNext() ? readItr.next() : null) != null );
+
+        final int oldIdx = fillIdx ^ 1; // flip the lowest bit
+        for ( final Map.Entry<String,IntHistogram[]> entry : libraryToHistoPairMap.entrySet() ) {
+            final IntHistogram[] histoPair = entry.getValue();
+            histoPair[oldIdx].addObservations(histoPair[fillIdx]);
+            if ( readMetadata.getLibraryStatistics(entry.getKey()).isDifferent(histoPair[oldIdx]) ) {
+                evList.add(createEvidence(readMetadata.getContigID(curContig), curEnd));
+            }
+        }
+        return evList.iterator();
+    }
+
+    public static boolean isTestableRead( final GATKRead read ) {
         return read.isFirstOfPair() &&
                 !read.isUnmapped() &&
                 !read.mateIsUnmapped() &&

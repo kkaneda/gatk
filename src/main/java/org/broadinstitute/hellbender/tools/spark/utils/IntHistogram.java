@@ -8,8 +8,6 @@ import org.broadinstitute.hellbender.utils.Utils;
 
 import java.util.Arrays;
 
-import static java.util.Arrays.binarySearch;
-
 /** Histogram of observations on a compact set of non-negative integer values. */
 @DefaultSerializer(IntHistogram.Serializer.class)
 public final class IntHistogram {
@@ -201,16 +199,10 @@ public final class IntHistogram {
             return false;
         }
 
-        public int median() {
-            return internalPopStat(.5f);
-        }
-
-        public int leftMedianDeviation() {
-            return median() - internalPopStat(.25f);
-        }
-
-        public int rightMedianDeviation() {
-            return internalPopStat(.75f) - median();
+        public int median() { return internalPopStat(.5f); }
+        public int leftMedianDeviation( final int median ) { return median - internalPopStat(.25f); }
+        public int rightMedianDeviation( final int median ) {
+            return internalPopStat(.75f) - median;
         }
 
         /** An observed value for which the specified fraction of the sample population has that value or less. */
@@ -220,7 +212,7 @@ public final class IntHistogram {
         }
 
         private int internalPopStat( final float popFraction ) {
-            final int idx = binarySearch(cdfFractions, popFraction);
+            final int idx = Arrays.binarySearch(cdfFractions, popFraction);
             return idx < 0 ? -idx - 1 : idx;
         }
 
