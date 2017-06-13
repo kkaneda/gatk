@@ -28,20 +28,24 @@ import java.util.Set;
 
 /**
  *
- * This tool evaluates a vcf against a validated truth vcf. We assume that the truth vcf only contains PASS variants.
+ * This tool evaluates an input VCF against a validated truth VCF. The tool assumes that the truth VCF only contains PASS variants.
  * The summary statistics (# true positives, # false positives, # false negatives, sensitivity, precision)
- * are reported as a summary tsv (--summary).
+ * are reported as a summary tsv file (--summary).
  *
- * Optionally, the tool also produces vcfs of
- * 1) true positives and false negatives (i.e. all variants in the truth vcf)
+ * Optionally, the tool also produces VCFs of
+ * 1) true positives and false negatives (i.e. all variants in the truth VCF)
  *      This mode is useful for calculating sensitivity
- * 2) true positives and false positives (i.e. all variants in the eval vcf)
+ * 2) true positives and false positives (i.e. all variants in the eval VCF)
  *      This mode is useful for obtaining a training data set for machine learning classifiers of artifacts.
  *
- * These vcfs can be passed to {@link VariantsToTable} to produce a tsv for statistical analysis in R or Python.
+ * These VCFs can be passed to {@link VariantsToTable} to produce a tsv file for statistical analysis in R or Python.
  *
  *
- * java -jar gatk.jar Concordance -eval na12878-eval.vcf --truth na12878-truth.vcf  --summary summary.tsv
+ * ./gatk-launch Concordance \
+ *   -R reference.fasta \
+ *   -eval eval.vcf \
+ *   --truth truth.vcf \
+ *   --summary summary.tsv    
  *
  * Created by Takuto Sato on 1/30/17.
  */
